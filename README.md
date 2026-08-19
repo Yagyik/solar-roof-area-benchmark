@@ -14,9 +14,15 @@ notebooks and small result summaries will be added after the methods are frozen.
 ## Current checkpoint
 
 The shared data, development-split, metrics, runtime, and Drive-artifact modules
-are present. The first working notebook is
-`notebooks/working/10_roof_slic_rf_experiments.ipynb`.
+are present. Three working experiment notebooks are maintained locally and in
+Drive, but remain ignored by Git until they are curated:
+
+- `notebooks/working/10_roof_slic_rf_experiments.ipynb`
+- `notebooks/working/20_roof_unet_experiments.ipynb`
+- `notebooks/working/30_roof_grounded_sam_experiments.ipynb`
+
+Reusable implementations live in `src/roof_panel_placement/segmentation/`.
+SLIC–RF runs on CPU; U-Net and Grounding DINO + SAM 2.1 require a GPU runtime.
 
 The official RID2 `test_split_512.csv` is sealed until the final comparison.
 See `docs/holdout_policy.md`.
-

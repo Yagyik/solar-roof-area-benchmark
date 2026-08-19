@@ -152,14 +152,30 @@ def cap_balanced_training_rows(
     return rows[selected_indices], targets[selected_indices]
 
 
-def _new_random_forest(config: dict, n_estimators: int, warm_start: bool) -> RandomForestClassifier:
+def _balanced_class_weights(targets: np.ndarray) -> dict[int, float]:
+    classes, counts = np.unique(targets, return_counts=True)
+    if set(classes.tolist()) != {0, 1}:
+        raise ValueError("Random Forest fitting rows must contain both classes.")
+    total = float(counts.sum())
+    return {
+        int(target): total / (len(classes) * float(count))
+        for target, count in zip(classes, counts)
+    }
+
+
+def _new_random_forest(
+    config: dict,
+    n_estimators: int,
+    warm_start: bool,
+    class_weight: dict[int, float],
+) -> RandomForestClassifier:
     forest_config = config["random_forest"]
     return RandomForestClassifier(
         n_estimators=n_estimators,
         max_depth=int(forest_config["max_depth"]),
         min_samples_leaf=int(forest_config["min_samples_leaf"]),
         max_features=forest_config["max_features"],
-        class_weight="balanced_subsample",
+        class_weight=class_weight,
         random_state=int(config["run"]["seed"]),
         n_jobs=int(forest_config["n_jobs"]),
         oob_score=True,
@@ -199,7 +215,12 @@ def fit_random_forest_learning_curve(
         }
         | {final_tree_count}
     )
-    model = _new_random_forest(config, tree_counts[0], warm_start=True)
+    model = _new_random_forest(
+        config,
+        tree_counts[0],
+        warm_start=True,
+        class_weight=_balanced_class_weights(fitting_targets),
+    )
     records = []
     for tree_count in tree_counts:
         model.set_params(n_estimators=tree_count)

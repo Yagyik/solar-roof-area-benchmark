@@ -20,10 +20,18 @@ TRACKED_PACKAGES = (
     "Pillow",
     "matplotlib",
     "PyYAML",
+    "torch",
+    "torchvision",
+    "transformers",
+    "huggingface-hub",
 )
 
 
-def require_runtime(accelerator: str, python_major_minor: str) -> dict:
+def require_runtime(
+    accelerator: str,
+    python_major_minor: str,
+    minimum_gpu_memory_gb: float | None = None,
+) -> dict:
     """Fail early when the active Colab runtime cannot run an experiment."""
     actual_python = f"{sys.version_info.major}.{sys.version_info.minor}"
     if actual_python != python_major_minor:
@@ -34,6 +42,7 @@ def require_runtime(accelerator: str, python_major_minor: str) -> dict:
     accelerator = accelerator.lower()
     cuda_available = False
     gpu_name = None
+    gpu_memory_gb = None
     if accelerator == "gpu":
         try:
             import torch
@@ -41,12 +50,18 @@ def require_runtime(accelerator: str, python_major_minor: str) -> dict:
             cuda_available = bool(torch.cuda.is_available())
             if cuda_available:
                 gpu_name = torch.cuda.get_device_name(0)
+                gpu_memory_gb = torch.cuda.get_device_properties(0).total_memory / 1024**3
         except ImportError:
             cuda_available = False
         if not cuda_available:
             raise RuntimeError(
                 "This experiment requires a GPU. In VS Code select a Colab GPU "
                 "runtime before continuing."
+            )
+        if minimum_gpu_memory_gb is not None and gpu_memory_gb < minimum_gpu_memory_gb:
+            raise RuntimeError(
+                f"This experiment requires at least {minimum_gpu_memory_gb:.1f} GiB GPU "
+                f"memory; found {gpu_memory_gb:.1f} GiB on {gpu_name}."
             )
     elif accelerator != "cpu":
         raise ValueError(f"Unsupported accelerator requirement: {accelerator}")
@@ -57,6 +72,7 @@ def require_runtime(accelerator: str, python_major_minor: str) -> dict:
         "accelerator_required": accelerator,
         "cuda_available": cuda_available,
         "gpu_name": gpu_name,
+        "gpu_memory_gb": gpu_memory_gb,
     }
 
 
@@ -93,4 +109,3 @@ def environment_snapshot(repository_root: Path) -> dict:
 def write_json(payload: dict, path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
-

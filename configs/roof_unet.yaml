@@ -1,0 +1,55 @@
+run:
+  name: roof_unet
+  seed: 20260819
+  mode: smoke
+
+runtime:
+  accelerator: gpu
+  python_major_minor: "3.12"
+  minimum_gpu_memory_gb: 14.0
+
+paths:
+  drive_root: /content/drive/MyDrive/roof_poc
+  dataset_work_root: /content/rid2
+  artifact_subdirectory: experiment_artifacts/roof
+
+data:
+  background_value: 5
+  pixel_size_m: 0.08
+  validation_fraction: 0.20
+  inner_validation_fraction: 0.20
+  area_strata: [0.0, 0.01, 0.05, 0.15, 0.35, 0.65, 1.0]
+
+model:
+  base_channels: 32
+
+training:
+  batch_size: 2
+  learning_rate: 0.0003
+  weight_decay: 0.0001
+  dice_weight: 0.50
+  maximum_positive_weight: 8.0
+  positive_weight: null
+  early_stopping_patience: 6
+  workers: 2
+
+inference:
+  probability_threshold: 0.50
+
+sensitivity:
+  probability_thresholds: [0.35, 0.50, 0.65]
+
+smoke:
+  training_images: 60
+  validation_images: 20
+  epochs: 3
+
+medium:
+  training_images: 500
+  validation_images: 100
+  epochs: 30
+
+full:
+  training_images: null
+  validation_images: null
+  epochs: 50

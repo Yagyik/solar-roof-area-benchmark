@@ -1,7 +1,7 @@
 run:
   name: roof_slic_rf
   seed: 20260819
-  mode: smoke
+  mode: medium
 
 runtime:
   accelerator: cpu
@@ -50,6 +50,11 @@ smoke:
   training_images: 60
   validation_images: 20
   n_estimators: 100
+
+medium:
+  training_images: 500
+  validation_images: 100
+  n_estimators: 300
 
 full:
   training_images: null

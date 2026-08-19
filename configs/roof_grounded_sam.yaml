@@ -1,0 +1,62 @@
+run:
+  name: roof_grounded_sam
+  seed: 20260819
+  mode: smoke
+
+runtime:
+  accelerator: gpu
+  python_major_minor: "3.12"
+  minimum_gpu_memory_gb: 14.0
+
+paths:
+  drive_root: /content/drive/MyDrive/roof_poc
+  dataset_work_root: /content/rid2
+  model_cache: /content/drive/MyDrive/roof_poc/model_cache/huggingface
+  artifact_subdirectory: experiment_artifacts/roof
+
+data:
+  background_value: 5
+  pixel_size_m: 0.08
+  validation_fraction: 0.20
+  area_strata: [0.0, 0.01, 0.05, 0.15, 0.35, 0.65, 1.0]
+
+models:
+  detector_id: IDEA-Research/grounding-dino-base
+  detector_revision: 12bdfa3120f3e7ec7b434d90674b3396eccf88eb
+  detector_weight_size_mb: 933
+  segmenter_id: facebook/sam2.1-hiera-large
+  segmenter_revision: 665f8e2ad61cf5f53d65644ff27c8ee525124610
+  segmenter_weight_size_mb: 898
+
+prompts:
+  roof: [roof, building roof, rooftop]
+  parent: [building, house, industrial building]
+  consensus_votes: 2
+
+detection:
+  box_threshold: 0.25
+  parent_box_threshold: 0.25
+  text_threshold: 0.20
+  nms_iou_threshold: 0.50
+  maximum_boxes: 30
+  maximum_parent_boxes: 8
+
+segmentation:
+  minimum_predicted_iou: 0.00
+  box_padding_fraction: 0.02
+
+sensitivity:
+  strategies: [joint, independent_union, independent_consensus, hierarchical]
+  box_thresholds: [0.20, 0.25, 0.35]
+
+smoke:
+  prompt_development_images: 6
+  validation_images: 12
+
+medium:
+  prompt_development_images: 40
+  validation_images: 100
+
+full:
+  prompt_development_images: null
+  validation_images: null

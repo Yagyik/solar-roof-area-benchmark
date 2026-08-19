@@ -9,11 +9,11 @@ implementations:
 - a task-trained U-Net; and
 - a prompted pipeline using an object detector to prompt a segmentation model.
 
-Both implementations will return the same result schema so that evaluation and
-reporting do not depend on the method. Oracle roof masks will be read only by
-the evaluation layer, never by either deployable implementation.
+All implementations return binary roof masks so that evaluation and
+reporting do not depend on the method. Oracle masks supervise U-Net fitting and
+score development results, but no deployable inference function accepts them.
 
-`slic_rf.py` contains the first classical implementation. The learned and
-prompted implementations will be added only after the classical notebook has
-run successfully in Colab.
-
+- `slic_rf.py` implements multiscale SLIC features and a Random Forest.
+- `unet.py` implements a compact task-trained U-Net and its training loop.
+- `grounded_sam.py` implements joint, independent, consensus, and hierarchical
+  Grounding DINO + SAM 2.1 prompting.

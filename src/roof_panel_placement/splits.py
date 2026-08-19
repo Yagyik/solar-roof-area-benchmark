@@ -73,6 +73,41 @@ def attach_runtime_paths(manifest: pd.DataFrame, paths: Rid2Paths) -> pd.DataFra
     return result
 
 
+def stratified_subset(
+    table: pd.DataFrame,
+    maximum: int | None,
+    seed: int,
+) -> pd.DataFrame:
+    """Select exactly ``maximum`` cases while approximately preserving area strata."""
+    if maximum is None or len(table) <= maximum:
+        return table.reset_index(drop=True)
+    if maximum <= 0:
+        raise ValueError("maximum must be positive or None")
+
+    groups = {
+        str(name): group.copy()
+        for name, group in table.groupby("area_stratum", observed=True, sort=True)
+    }
+    counts = {name: 0 for name in groups}
+    if maximum >= len(groups):
+        counts = {name: 1 for name in groups}
+    desired = {name: maximum * len(group) / len(table) for name, group in groups.items()}
+
+    while sum(counts.values()) < maximum:
+        candidates = [name for name, group in groups.items() if counts[name] < len(group)]
+        selected = max(candidates, key=lambda name: (desired[name] - counts[name], name))
+        counts[selected] += 1
+
+    pieces = []
+    for name, group in groups.items():
+        ordered = group.assign(
+            subset_key=group["image_name"].map(lambda value: _stable_key(value, seed))
+        ).sort_values("subset_key")
+        pieces.append(ordered.iloc[: counts[name]].drop(columns="subset_key"))
+    result = pd.concat(pieces)
+    return result.sample(frac=1, random_state=seed).reset_index(drop=True)
+
+
 def split_inner_diagnostics(
     training_cases: pd.DataFrame,
     diagnostic_fraction: float,
