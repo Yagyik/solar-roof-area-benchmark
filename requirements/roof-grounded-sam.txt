@@ -1,4 +1,8 @@
--r roof-classical.txt
+numpy
+pandas
+Pillow
+matplotlib
+PyYAML
 torch>=2.5
 torchvision
 transformers>=4.57
