@@ -1,0 +1,45 @@
+# Working notebooks are preserved locally and on Drive during experimentation.
+# Only curated notebooks copied into notebooks/final/ are eligible for Git.
+*.ipynb
+!notebooks/final/*.ipynb
+.ipynb_checkpoints/
+
+# RID2 data and downloaded archives are too large for GitHub.
+/roof_information_dataset_2/
+/roof_information_dataset_2.zip
+/roof_poc-*/
+/roof_poc-*.zip
+/*.zip
+/*.crdownload
+
+# Experiment outputs belong in downloadable Drive bundles. Small, curated
+# summary tables may later be copied into results/summary_tables/.
+/artifacts/
+/outputs/
+/runs/
+/aggregate_metrics.csv
+/detailed_diagnostics.txt
+
+# Model and package caches.
+.cache/
+model_cache/
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+
+# Python/editor state.
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+.env
+.DS_Store
+
+# Credentials and machine-specific path configuration.
+credentials/
+secrets/
+configs/paths.local.yaml
+

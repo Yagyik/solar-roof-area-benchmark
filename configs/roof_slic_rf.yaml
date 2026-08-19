@@ -1,0 +1,52 @@
+run:
+  name: roof_slic_rf
+  seed: 20260819
+  mode: smoke
+
+runtime:
+  accelerator: cpu
+  python_major_minor: "3.12"
+
+paths:
+  drive_root: /content/drive/MyDrive/roof_poc
+  dataset_work_root: /content/rid2
+  artifact_subdirectory: experiment_artifacts/roof
+
+data:
+  background_value: 5
+  pixel_size_m: 0.08
+  validation_fraction: 0.20
+  area_strata: [0.0, 0.01, 0.05, 0.15, 0.35, 0.65, 1.0]
+
+slic:
+  n_segments: [200, 350, 500, 750]
+  compactness: 10.0
+  sigma: 1.0
+
+features:
+  positive_fraction: 0.80
+  negative_fraction: 0.20
+  max_rows_per_image_per_class: 40
+  max_rows_per_class: 100000
+
+random_forest:
+  n_estimators: 300
+  max_depth: 24
+  min_samples_leaf: 2
+  max_features: sqrt
+  n_jobs: -1
+
+postprocessing:
+  probability_threshold: 0.50
+  minimum_component_pixels: 100
+  maximum_hole_pixels: 100
+  closing_radius_pixels: 1
+
+smoke:
+  training_images: 60
+  validation_images: 20
+  n_estimators: 100
+
+full:
+  training_images: null
+  validation_images: null

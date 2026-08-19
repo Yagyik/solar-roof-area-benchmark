@@ -1,0 +1,96 @@
+"""Small runtime checks and reproducibility snapshots for Colab runs."""
+
+from __future__ import annotations
+
+import importlib.metadata
+import json
+import os
+import platform
+import subprocess
+import sys
+from pathlib import Path
+
+
+TRACKED_PACKAGES = (
+    "numpy",
+    "pandas",
+    "scipy",
+    "scikit-image",
+    "scikit-learn",
+    "Pillow",
+    "matplotlib",
+    "PyYAML",
+)
+
+
+def require_runtime(accelerator: str, python_major_minor: str) -> dict:
+    """Fail early when the active Colab runtime cannot run an experiment."""
+    actual_python = f"{sys.version_info.major}.{sys.version_info.minor}"
+    if actual_python != python_major_minor:
+        raise RuntimeError(
+            f"This run requires Python {python_major_minor}; found {actual_python}."
+        )
+
+    accelerator = accelerator.lower()
+    cuda_available = False
+    gpu_name = None
+    if accelerator == "gpu":
+        try:
+            import torch
+
+            cuda_available = bool(torch.cuda.is_available())
+            if cuda_available:
+                gpu_name = torch.cuda.get_device_name(0)
+        except ImportError:
+            cuda_available = False
+        if not cuda_available:
+            raise RuntimeError(
+                "This experiment requires a GPU. In VS Code select a Colab GPU "
+                "runtime before continuing."
+            )
+    elif accelerator != "cpu":
+        raise ValueError(f"Unsupported accelerator requirement: {accelerator}")
+
+    return {
+        "python": platform.python_version(),
+        "platform": platform.platform(),
+        "accelerator_required": accelerator,
+        "cuda_available": cuda_available,
+        "gpu_name": gpu_name,
+    }
+
+
+def git_revision(repository_root: Path) -> str | None:
+    """Return the checked-out Git revision when available."""
+    result = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=repository_root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return result.stdout.strip() if result.returncode == 0 else None
+
+
+def environment_snapshot(repository_root: Path) -> dict:
+    """Capture the compact environment record saved with every run."""
+    versions = {}
+    for package in TRACKED_PACKAGES:
+        try:
+            versions[package] = importlib.metadata.version(package)
+        except importlib.metadata.PackageNotFoundError:
+            versions[package] = None
+
+    return {
+        "python": platform.python_version(),
+        "platform": platform.platform(),
+        "colab_release_tag": os.environ.get("COLAB_RELEASE_TAG"),
+        "git_revision": git_revision(repository_root),
+        "packages": versions,
+    }
+
+
+def write_json(payload: dict, path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+
