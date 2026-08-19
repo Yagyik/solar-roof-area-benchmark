@@ -29,14 +29,17 @@ TRACKED_PACKAGES = (
 
 def require_runtime(
     accelerator: str,
-    python_major_minor: str,
+    python_major_minor: str | list[str],
     minimum_gpu_memory_gb: float | None = None,
 ) -> dict:
     """Fail early when the active Colab runtime cannot run an experiment."""
     actual_python = f"{sys.version_info.major}.{sys.version_info.minor}"
-    if actual_python != python_major_minor:
+    allowed_python = (
+        [python_major_minor] if isinstance(python_major_minor, str) else python_major_minor
+    )
+    if actual_python not in allowed_python:
         raise RuntimeError(
-            f"This run requires Python {python_major_minor}; found {actual_python}."
+            f"This run requires Python in {allowed_python}; found {actual_python}."
         )
 
     accelerator = accelerator.lower()

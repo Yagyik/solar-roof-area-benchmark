@@ -5,7 +5,7 @@ run:
 
 runtime:
   accelerator: gpu
-  python_major_minor: "3.12"
+  python_major_minor: ["3.11", "3.12"]
   minimum_gpu_memory_gb: 14.0
 
 paths:
