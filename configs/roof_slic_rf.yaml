@@ -18,6 +18,10 @@ data:
   validation_fraction: 0.20
   area_strata: [0.0, 0.01, 0.05, 0.15, 0.35, 0.65, 1.0]
 
+diagnostics:
+  inner_validation_fraction: 0.20
+  tree_counts: [25, 50, 100, 200, 300]
+
 slic:
   n_segments: [200, 350, 500, 750]
   compactness: 10.0

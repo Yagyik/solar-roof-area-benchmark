@@ -9,6 +9,13 @@ from scipy.ndimage import uniform_filter
 from skimage import color, filters, morphology, segmentation
 from skimage.feature import local_binary_pattern
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import (
+    average_precision_score,
+    balanced_accuracy_score,
+    brier_score_loss,
+    log_loss,
+    roc_auc_score,
+)
 
 
 LBP_POINTS = 8
@@ -145,18 +152,79 @@ def cap_balanced_training_rows(
     return rows[selected_indices], targets[selected_indices]
 
 
-def fit_random_forest(rows: np.ndarray, targets: np.ndarray, config: dict) -> RandomForestClassifier:
+def _new_random_forest(config: dict, n_estimators: int, warm_start: bool) -> RandomForestClassifier:
     forest_config = config["random_forest"]
-    model = RandomForestClassifier(
-        n_estimators=int(forest_config["n_estimators"]),
+    return RandomForestClassifier(
+        n_estimators=n_estimators,
         max_depth=int(forest_config["max_depth"]),
         min_samples_leaf=int(forest_config["min_samples_leaf"]),
         max_features=forest_config["max_features"],
         class_weight="balanced_subsample",
         random_state=int(config["run"]["seed"]),
         n_jobs=int(forest_config["n_jobs"]),
+        oob_score=True,
+        warm_start=warm_start,
     )
-    return model.fit(rows, targets)
+
+
+def _probability_diagnostics(
+    targets: np.ndarray,
+    probability: np.ndarray,
+) -> dict[str, float | int]:
+    prediction = probability >= 0.5
+    return {
+        "roc_auc": float(roc_auc_score(targets, probability)),
+        "average_precision": float(average_precision_score(targets, probability)),
+        "log_loss": float(log_loss(targets, probability, labels=[0, 1])),
+        "brier_score": float(brier_score_loss(targets, probability)),
+        "balanced_accuracy": float(balanced_accuracy_score(targets, prediction)),
+        "evaluated_rows": int(len(targets)),
+    }
+
+
+def fit_random_forest_learning_curve(
+    fitting_rows: np.ndarray,
+    fitting_targets: np.ndarray,
+    diagnostic_rows: np.ndarray,
+    diagnostic_targets: np.ndarray,
+    config: dict,
+) -> tuple[RandomForestClassifier, list[dict[str, float | int | str]]]:
+    """Fit progressively more trees and compare fit, OOB, and held-image rows."""
+    final_tree_count = int(config["random_forest"]["n_estimators"])
+    tree_counts = sorted(
+        {
+            int(count)
+            for count in config["diagnostics"]["tree_counts"]
+            if int(count) <= final_tree_count
+        }
+        | {final_tree_count}
+    )
+    model = _new_random_forest(config, tree_counts[0], warm_start=True)
+    records = []
+    for tree_count in tree_counts:
+        model.set_params(n_estimators=tree_count)
+        model.fit(fitting_rows, fitting_targets)
+        fit_probability = model.predict_proba(fitting_rows)[:, 1]
+        diagnostic_probability = model.predict_proba(diagnostic_rows)[:, 1]
+        oob_valid = model.oob_decision_function_.sum(axis=1) > 0
+        probability_sets = (
+            ("fit", fitting_targets, fit_probability),
+            (
+                "oob",
+                fitting_targets[oob_valid],
+                model.oob_decision_function_[oob_valid, 1],
+            ),
+            ("inner_diagnostic", diagnostic_targets, diagnostic_probability),
+        )
+        for dataset_name, targets, probability in probability_sets:
+            records.append(
+                {
+                    "trees": tree_count,
+                    "dataset": dataset_name,
+                    **_probability_diagnostics(targets, probability),
+                }
+            )
+    return model, records
 
 
 def predict_multiscale_probability(
@@ -184,14 +252,16 @@ def postprocess_probability(probability: np.ndarray, config: dict) -> np.ndarray
     mask = probability >= float(post["probability_threshold"])
     radius = int(post["closing_radius_pixels"])
     if radius > 0:
-        mask = morphology.binary_closing(mask, morphology.disk(radius))
+        mask = morphology.closing(mask, morphology.disk(radius))
+    maximum_hole_pixels = int(post["maximum_hole_pixels"])
     mask = morphology.remove_small_holes(
         mask,
-        area_threshold=int(post["maximum_hole_pixels"]),
+        max_size=max(0, maximum_hole_pixels - 1),
     )
+    minimum_component_pixels = int(post["minimum_component_pixels"])
     return morphology.remove_small_objects(
         mask,
-        min_size=int(post["minimum_component_pixels"]),
+        max_size=max(0, minimum_component_pixels - 1),
     )
 
 

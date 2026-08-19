@@ -71,3 +71,24 @@ def attach_runtime_paths(manifest: pd.DataFrame, paths: Rid2Paths) -> pd.DataFra
     result["image_path"] = result["image_name"].map(paths.image_path)
     result["roof_mask_path"] = result["image_name"].map(paths.roof_mask_path)
     return result
+
+
+def split_inner_diagnostics(
+    training_cases: pd.DataFrame,
+    diagnostic_fraction: float,
+    seed: int,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Hold out complete training images for pre-validation diagnostics."""
+    table = training_cases.copy()
+    table["diagnostic_key"] = table["image_name"].map(lambda name: _stable_key(name, seed))
+    diagnostic_indices = []
+    for _, indices in table.groupby("area_stratum", observed=True).groups.items():
+        ordered = table.loc[list(indices)].sort_values("diagnostic_key")
+        if len(ordered) < 2:
+            continue
+        count = max(1, round(len(ordered) * diagnostic_fraction))
+        diagnostic_indices.extend(ordered.index[: min(count, len(ordered) - 1)])
+
+    diagnostic = table.loc[diagnostic_indices].drop(columns="diagnostic_key")
+    fitting = table.drop(index=diagnostic_indices).drop(columns="diagnostic_key")
+    return fitting.reset_index(drop=True), diagnostic.reset_index(drop=True)
