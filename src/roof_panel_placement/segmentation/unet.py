@@ -20,10 +20,12 @@ class RoofDataset(Dataset):
         cases,
         background_value: int,
         augment: bool = False,
+        augmentation_config: dict | None = None,
     ) -> None:
         self.cases = cases.reset_index(drop=True)
         self.background_value = background_value
         self.augment = augment
+        self.augmentation_config = augmentation_config or {}
 
     def __len__(self) -> int:
         return len(self.cases)
@@ -43,22 +45,76 @@ class RoofDataset(Dataset):
             if bool(torch.randint(0, 2, ()).item()):
                 image = np.flip(image, axis=0)
                 mask = np.flip(mask, axis=0)
+            image = _photometric_augmentation(image, self.augmentation_config)
 
-        image_tensor = torch.from_numpy(np.ascontiguousarray(image)).permute(2, 0, 1).float()
+        image_tensor = torch.from_numpy(np.array(image, copy=True, order="C")).permute(2, 0, 1).float()
         image_tensor = image_tensor / 255.0
-        mask_tensor = torch.from_numpy(np.ascontiguousarray(mask))[None].float()
+        mask_tensor = torch.from_numpy(np.array(mask, copy=True, order="C"))[None].float()
         return image_tensor, mask_tensor, str(row.sample_id)
 
 
+def _random_symmetric(maximum: float) -> float:
+    return float((2.0 * torch.rand(()) - 1.0).item()) * maximum
+
+
+def _photometric_augmentation(image: np.ndarray, config: dict) -> np.ndarray:
+    """Apply mild RGB-only jitter while leaving the paired mask unchanged."""
+    if not config:
+        return image
+
+    adjusted = np.asarray(image, dtype=np.float32) / 255.0
+    brightness = float(config.get("brightness", 0.0))
+    if brightness > 0:
+        adjusted *= 1.0 + _random_symmetric(brightness)
+
+    contrast = float(config.get("contrast", 0.0))
+    if contrast > 0:
+        channel_mean = adjusted.mean(axis=(0, 1), keepdims=True)
+        adjusted = channel_mean + (adjusted - channel_mean) * (
+            1.0 + _random_symmetric(contrast)
+        )
+
+    saturation = float(config.get("saturation", 0.0))
+    if saturation > 0:
+        gray = adjusted.mean(axis=2, keepdims=True)
+        adjusted = gray + (adjusted - gray) * (1.0 + _random_symmetric(saturation))
+
+    noise_standard_deviation = float(config.get("noise_standard_deviation", 0.0))
+    if noise_standard_deviation > 0:
+        noise = torch.randn(adjusted.shape).numpy() * noise_standard_deviation
+        adjusted += noise.astype(np.float32)
+
+    return np.round(np.clip(adjusted, 0.0, 1.0) * 255.0).astype(np.uint8)
+
+
+def _normalization_layer(kind: str, channels: int, group_count: int) -> nn.Module:
+    if kind == "batch":
+        return nn.BatchNorm2d(channels)
+    if kind == "group":
+        if group_count <= 0:
+            raise ValueError("group_count must be positive.")
+        groups = min(group_count, channels)
+        while channels % groups:
+            groups -= 1
+        return nn.GroupNorm(groups, channels)
+    raise ValueError(f"Unknown normalization: {kind}")
+
+
 class DoubleConv(nn.Module):
-    def __init__(self, input_channels: int, output_channels: int) -> None:
+    def __init__(
+        self,
+        input_channels: int,
+        output_channels: int,
+        normalization: str = "batch",
+        group_count: int = 8,
+    ) -> None:
         super().__init__()
         self.block = nn.Sequential(
             nn.Conv2d(input_channels, output_channels, 3, padding=1, bias=False),
-            nn.BatchNorm2d(output_channels),
+            _normalization_layer(normalization, output_channels, group_count),
             nn.ReLU(inplace=True),
             nn.Conv2d(output_channels, output_channels, 3, padding=1, bias=False),
-            nn.BatchNorm2d(output_channels),
+            _normalization_layer(normalization, output_channels, group_count),
             nn.ReLU(inplace=True),
         )
 
@@ -67,19 +123,40 @@ class DoubleConv(nn.Module):
 
 
 class DownBlock(nn.Module):
-    def __init__(self, input_channels: int, output_channels: int) -> None:
+    def __init__(
+        self,
+        input_channels: int,
+        output_channels: int,
+        normalization: str = "batch",
+        group_count: int = 8,
+    ) -> None:
         super().__init__()
-        self.block = nn.Sequential(nn.MaxPool2d(2), DoubleConv(input_channels, output_channels))
+        self.block = nn.Sequential(
+            nn.MaxPool2d(2),
+            DoubleConv(input_channels, output_channels, normalization, group_count),
+        )
 
     def forward(self, inputs: torch.Tensor) -> torch.Tensor:
         return self.block(inputs)
 
 
 class UpBlock(nn.Module):
-    def __init__(self, input_channels: int, skip_channels: int, output_channels: int) -> None:
+    def __init__(
+        self,
+        input_channels: int,
+        skip_channels: int,
+        output_channels: int,
+        normalization: str = "batch",
+        group_count: int = 8,
+    ) -> None:
         super().__init__()
         self.up = nn.ConvTranspose2d(input_channels, output_channels, 2, stride=2)
-        self.conv = DoubleConv(output_channels + skip_channels, output_channels)
+        self.conv = DoubleConv(
+            output_channels + skip_channels,
+            output_channels,
+            normalization,
+            group_count,
+        )
 
     def forward(self, inputs: torch.Tensor, skip: torch.Tensor) -> torch.Tensor:
         inputs = self.up(inputs)
@@ -89,15 +166,32 @@ class UpBlock(nn.Module):
 class RoofUNet(nn.Module):
     """Four-level U-Net that preserves the 512×512 output resolution."""
 
-    def __init__(self, base_channels: int = 32) -> None:
+    def __init__(
+        self,
+        base_channels: int = 32,
+        normalization: str = "batch",
+        group_count: int = 8,
+    ) -> None:
         super().__init__()
         channels = [base_channels * 2**level for level in range(5)]
-        self.input_block = DoubleConv(3, channels[0])
+        self.input_block = DoubleConv(3, channels[0], normalization, group_count)
         self.down_blocks = nn.ModuleList(
-            DownBlock(channels[level], channels[level + 1]) for level in range(4)
+            DownBlock(
+                channels[level],
+                channels[level + 1],
+                normalization,
+                group_count,
+            )
+            for level in range(4)
         )
         self.up_blocks = nn.ModuleList(
-            UpBlock(channels[level], channels[level - 1], channels[level - 1])
+            UpBlock(
+                channels[level],
+                channels[level - 1],
+                channels[level - 1],
+                normalization,
+                group_count,
+            )
             for level in range(4, 0, -1)
         )
         self.output = nn.Conv2d(channels[0], 1, kernel_size=1)
@@ -232,6 +326,15 @@ def fit_unet(
         dice_weight=float(training_config["dice_weight"]),
     ).to(device)
     scaler = torch.amp.GradScaler("cuda", enabled=device.type == "cuda")
+    scheduler = None
+    if "scheduler_factor" in training_config:
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+            optimizer,
+            mode="min",
+            factor=float(training_config["scheduler_factor"]),
+            patience=int(training_config["scheduler_patience"]),
+            min_lr=float(training_config["minimum_learning_rate"]),
+        )
     history = []
     best_loss = float("inf")
     checkpoint_written = False
@@ -258,12 +361,22 @@ def fit_unet(
             ("fit", fit_metrics),
             ("inner_diagnostic", diagnostic_metrics),
         ):
-            history.append({"epoch": epoch, "dataset": dataset_name, **metrics})
+            history.append(
+                {
+                    "epoch": epoch,
+                    "dataset": dataset_name,
+                    "learning_rate": float(optimizer.param_groups[0]["lr"]),
+                    **metrics,
+                }
+            )
         print(
             f"Epoch {epoch:02d}: fit loss={fit_metrics['loss']:.4f}, "
             f"diagnostic loss={diagnostic_metrics['loss']:.4f}, "
             f"diagnostic IoU={diagnostic_metrics['iou']:.4f}"
         )
+
+        if scheduler is not None:
+            scheduler.step(diagnostic_metrics["loss"])
 
         if diagnostic_metrics["loss"] < best_loss:
             best_loss = diagnostic_metrics["loss"]
@@ -286,7 +399,7 @@ def fit_unet(
 @torch.inference_mode()
 def predict_probability(model: nn.Module, image: np.ndarray, device: torch.device) -> np.ndarray:
     """Predict a full-resolution roof probability map for one RGB image."""
-    inputs = torch.from_numpy(np.ascontiguousarray(image)).permute(2, 0, 1)[None].float()
+    inputs = torch.from_numpy(np.array(image, copy=True, order="C")).permute(2, 0, 1)[None].float()
     inputs = inputs.to(device) / 255.0
     with torch.autocast(device_type=device.type, enabled=device.type == "cuda"):
         probability = torch.sigmoid(model(inputs))[0, 0]

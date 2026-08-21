@@ -73,3 +73,37 @@ def aggregate_roof_metrics(per_image: pd.DataFrame) -> dict[str, float | int]:
             per_image.loc[empty_reference, "false_positive_area_m2"].sum()
         ),
     }
+
+
+def select_area_aware_operating_point(
+    sensitivity: pd.DataFrame,
+    iou_tolerance: float,
+) -> tuple[float, pd.DataFrame]:
+    """Prefer minimum area error among thresholds with near-best mean IoU."""
+    required = {
+        "probability_threshold",
+        "mean_iou_nonempty_union",
+        "mean_absolute_area_error_m2",
+    }
+    missing = required.difference(sensitivity.columns)
+    if missing:
+        raise ValueError(f"Sensitivity table is missing columns: {sorted(missing)}")
+    if iou_tolerance < 0:
+        raise ValueError("iou_tolerance must be non-negative.")
+
+    annotated = sensitivity.copy()
+    finite_iou = annotated["mean_iou_nonempty_union"].dropna()
+    if finite_iou.empty:
+        raise ValueError("Sensitivity table contains no finite mean-IoU values.")
+    best_iou = float(finite_iou.max())
+    annotated["within_iou_tolerance"] = (
+        annotated["mean_iou_nonempty_union"] >= best_iou - iou_tolerance
+    )
+    eligible = annotated.loc[annotated["within_iou_tolerance"]].sort_values(
+        ["mean_absolute_area_error_m2", "mean_iou_nonempty_union"],
+        ascending=[True, False],
+    )
+    selected_index = eligible.index[0]
+    annotated["selected"] = annotated.index == selected_index
+    selected_threshold = float(annotated.loc[selected_index, "probability_threshold"])
+    return selected_threshold, annotated

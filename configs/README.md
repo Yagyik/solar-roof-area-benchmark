@@ -11,8 +11,12 @@ configuration files.
 Current roof-method configurations are:
 
 - `roof_slic_rf.yaml`: CPU, medium development run by default;
-- `roof_unet.yaml`: GPU, smoke training run by default;
+- `roof_unet.yaml`: preserved v1 GPU experiment;
+- `roof_unet_v2.yaml`: GroupNorm and area-aware v2 GPU experiment;
 - `roof_grounded_sam.yaml`: GPU, smoke prompt-development run by default.
+
+Frozen historical configurations live under `configs/archive/` and must not be
+edited when a new trial is introduced.
 
 The prompted configuration pins both model repositories to immutable revisions
 and records individual checkpoint sizes. Model weights and caches remain in
