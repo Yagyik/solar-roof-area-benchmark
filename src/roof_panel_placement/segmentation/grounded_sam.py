@@ -33,23 +33,27 @@ def load_models(config: dict, device: torch.device) -> GroundedSamModels:
         model_config["detector_id"],
         revision=model_config["detector_revision"],
         cache_dir=cache_directory,
+        token=False,
     )
     detector = AutoModelForZeroShotObjectDetection.from_pretrained(
         model_config["detector_id"],
         revision=model_config["detector_revision"],
         cache_dir=cache_directory,
         use_safetensors=True,
+        token=False,
     ).to(device).eval()
     segmenter_processor = Sam2Processor.from_pretrained(
         model_config["segmenter_id"],
         revision=model_config["segmenter_revision"],
         cache_dir=cache_directory,
+        token=False,
     )
     segmenter = Sam2Model.from_pretrained(
         model_config["segmenter_id"],
         revision=model_config["segmenter_revision"],
         cache_dir=cache_directory,
         use_safetensors=True,
+        token=False,
     ).to(device).eval()
     return GroundedSamModels(
         detector_processor=detector_processor,
@@ -275,8 +279,10 @@ def predict_hierarchical(
             int(config["detection"]["maximum_boxes"]),
         )
         if len(child["boxes"]):
-            child["boxes"][:, [0, 2]] += x1
-            child["boxes"][:, [1, 3]] += y1
+            translated_boxes = child["boxes"].clone()
+            translated_boxes[:, [0, 2]] += x1
+            translated_boxes[:, [1, 3]] += y1
+            child = {**child, "boxes": translated_boxes}
             child_detections.append(child)
     children = _deduplicate_detections(
         child_detections,
