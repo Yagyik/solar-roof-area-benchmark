@@ -17,7 +17,9 @@ Current roof-method configurations are:
 - `roof_grounded_sam_v2.yaml`: augmented-prompt, parent-box, clipped-hierarchy,
   area-aware v2 GPU experiment;
 - `roof_grounded_sam_v3.yaml`: fixed relational hierarchy with independently
-  diagnosed parent and roof detector thresholds.
+  diagnosed parent and roof detector thresholds;
+- `roof_grounded_sam_v4.yaml`: class-agnostic parent NMS before the fixed
+  20-parent cap, followed by a separately retuned roof gate.
 
 Frozen historical configurations live under `configs/archive/` and must not be
 edited when a new trial is introduced.

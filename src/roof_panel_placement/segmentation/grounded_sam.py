@@ -260,20 +260,90 @@ def predict_independent(
     }
 
 
+def detect_parent_candidates(
+    models: GroundedSamModels,
+    image: np.ndarray,
+    parent_prompts: list[str],
+    config: dict,
+) -> dict:
+    """Generate the raw scored parent pool before optional parent NMS."""
+    detection_config = config["detection"]
+    maximum_parent_boxes = int(detection_config["maximum_parent_boxes"])
+    parent_nms_threshold = detection_config.get("parent_nms_iou_threshold")
+    maximum_raw_boxes = (
+        int(detection_config["maximum_raw_parent_boxes"])
+        if parent_nms_threshold is not None
+        else maximum_parent_boxes
+    )
+    candidates = detect_boxes(
+        models,
+        image,
+        parent_prompts,
+        float(detection_config["parent_box_threshold"]),
+        float(detection_config["text_threshold"]),
+        maximum_raw_boxes,
+    )
+    return {
+        **candidates,
+        "raw_box_count": len(candidates["boxes"]),
+        "raw_cap_reached": len(candidates["boxes"]) == maximum_raw_boxes,
+    }
+
+
+def apply_parent_nms(
+    candidates: dict,
+    iou_threshold: float,
+    maximum_parent_boxes: int,
+) -> dict:
+    """Apply class-agnostic NMS to a raw parent pool, then enforce the final cap."""
+    if not len(candidates["boxes"]):
+        return {
+            **candidates,
+            "nms_box_count": 0,
+            "suppressed_box_count": 0,
+            "final_cap_reached": False,
+        }
+    keep_after_nms = nms(
+        candidates["boxes"],
+        candidates["scores"],
+        float(iou_threshold),
+    ).tolist()
+    nms_box_count = len(keep_after_nms)
+    keep = keep_after_nms[:maximum_parent_boxes]
+    return {
+        "boxes": candidates["boxes"][keep],
+        "scores": candidates["scores"][keep],
+        "labels": [candidates["labels"][index] for index in keep],
+        "raw_box_count": int(candidates["raw_box_count"]),
+        "raw_cap_reached": bool(candidates["raw_cap_reached"]),
+        "nms_box_count": nms_box_count,
+        "suppressed_box_count": len(candidates["boxes"]) - nms_box_count,
+        "final_cap_reached": nms_box_count > maximum_parent_boxes,
+    }
+
+
 def detect_parent_boxes(
     models: GroundedSamModels,
     image: np.ndarray,
     parent_prompts: list[str],
     config: dict,
 ) -> dict:
-    """Detect parent building boxes using the independently configured gate."""
-    return detect_boxes(
-        models,
-        image,
-        parent_prompts,
-        float(config["detection"]["parent_box_threshold"]),
-        float(config["detection"]["text_threshold"]),
-        int(config["detection"]["maximum_parent_boxes"]),
+    """Detect parents, optionally applying class-agnostic NMS before the final cap."""
+    detection_config = config["detection"]
+    maximum_parent_boxes = int(detection_config["maximum_parent_boxes"])
+    candidates = detect_parent_candidates(models, image, parent_prompts, config)
+    parent_nms_threshold = detection_config.get("parent_nms_iou_threshold")
+    if parent_nms_threshold is None:
+        return {
+            **candidates,
+            "nms_box_count": len(candidates["boxes"]),
+            "suppressed_box_count": 0,
+            "final_cap_reached": len(candidates["boxes"]) == maximum_parent_boxes,
+        }
+    return apply_parent_nms(
+        candidates,
+        float(parent_nms_threshold),
+        maximum_parent_boxes,
     )
 
 
@@ -317,6 +387,15 @@ def _predict_hierarchical_from_parents(
     result["parent_boxes"] = parent["boxes"]
     result["parent_scores"] = parent["scores"]
     result["parent_labels"] = parent["labels"]
+    for key in (
+        "raw_box_count",
+        "raw_cap_reached",
+        "nms_box_count",
+        "suppressed_box_count",
+        "final_cap_reached",
+    ):
+        if key in parent:
+            result[f"parent_{key}"] = parent[key]
     return result
 
 

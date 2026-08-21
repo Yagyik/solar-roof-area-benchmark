@@ -20,4 +20,5 @@ score development results, but no deployable inference function accepts them.
   parent-building SAM regions, while oracle-component boxes are exposed only
   through an explicitly diagnostic function. V3 additionally exposes parent
   boxes so parent coverage and final roof-box localization can be evaluated as
-  separate stages.
+  separate stages. V4 adds a reusable class-agnostic NMS stage between the raw
+  parent proposal pool and the fixed final parent cap.
