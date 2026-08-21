@@ -60,6 +60,39 @@ def save_probability_maps(cases: list[dict], directory: Path) -> Path:
     return index_path
 
 
+def save_binary_masks(cases: list[dict], directory: Path, mask_keys: tuple[str, ...]) -> Path:
+    """Persist named binary masks for later visual and numerical examination."""
+    if not mask_keys:
+        raise ValueError("At least one mask key is required.")
+    directory.mkdir(parents=True, exist_ok=True)
+    records = []
+    for case in cases:
+        sample_id = str(case["sample_id"])
+        payload = {
+            key: np.asarray(case[key], dtype=np.uint8)
+            for key in mask_keys
+            if key in case
+        }
+        if not payload:
+            raise ValueError(f"Case {sample_id} contains none of the requested masks.")
+        output_path = directory / f"{sample_id}.npz"
+        np.savez_compressed(output_path, **payload)
+        records.append(
+            {
+                "sample_id": sample_id,
+                "file": output_path.name,
+                "masks": {
+                    key: {"dtype": str(value.dtype), "shape": list(value.shape)}
+                    for key, value in payload.items()
+                },
+            }
+        )
+
+    index_path = directory / "index.json"
+    index_path.write_text(json.dumps(records, indent=2), encoding="utf-8")
+    return index_path
+
+
 def write_artifact_manifest(run: RunDirectory) -> Path:
     """Write file sizes and SHA-256 hashes before the run directory is zipped."""
     output_path = run.path / "artifact_manifest.json"

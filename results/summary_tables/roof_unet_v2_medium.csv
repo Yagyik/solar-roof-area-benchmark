@@ -1,0 +1,3 @@
+method,operating_point,images,mean_iou_nonempty_union,median_iou_nonempty_union,mean_absolute_area_error_m2,run_id
+unet_v2,threshold=0.70,100,0.459876,0.509992,184.643776,roof_unet_v2_medium_20260821T105827Z
+

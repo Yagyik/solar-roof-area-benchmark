@@ -15,5 +15,7 @@ score development results, but no deployable inference function accepts them.
 
 - `slic_rf.py` implements multiscale SLIC features and a Random Forest.
 - `unet.py` implements a compact task-trained U-Net and its training loop.
-- `grounded_sam.py` implements joint, independent, consensus, and hierarchical
-  Grounding DINO + SAM 2.1 prompting.
+- `grounded_sam.py` implements joint, independent, consensus, parent-box, and
+  hierarchical Grounding DINO + SAM 2.1 prompting. The clipped hierarchy uses
+  parent-building SAM regions, while oracle-component boxes are exposed only
+  through an explicitly diagnostic function.

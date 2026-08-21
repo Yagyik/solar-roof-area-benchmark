@@ -21,6 +21,7 @@ Drive, but remain ignored by Git until they are curated:
 - `notebooks/working/20_roof_unet_experiments.ipynb`
 - `notebooks/working/21_roof_unet_v2_experiments.ipynb`
 - `notebooks/working/30_roof_grounded_sam_experiments.ipynb`
+- `notebooks/working/31_roof_grounded_sam_v2_experiments.ipynb`
 
 Reusable implementations live in `src/roof_panel_placement/segmentation/`.
 SLIC–RF runs on CPU; U-Net and Grounding DINO + SAM 2.1 require a GPU runtime.
@@ -30,4 +31,7 @@ See `docs/holdout_policy.md`.
 
 The first medium-run comparison is frozen in
 `docs/checkpoints/roof_segmentation_v1_medium.md`; deferred comparison work is
-tracked in `docs/experiment_todos.md`.
+tracked in `docs/experiment_todos.md`. The U-Net v2 medium negative result is
+frozen separately in `docs/checkpoints/roof_unet_v2_medium.md`; the first
+Grounded-SAM smoke result is frozen in
+`docs/checkpoints/roof_grounded_sam_v1_smoke.md`.

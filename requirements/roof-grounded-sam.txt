@@ -3,6 +3,7 @@ pandas
 Pillow
 matplotlib
 PyYAML
+scipy
 torch>=2.5
 torchvision
 transformers>=4.57

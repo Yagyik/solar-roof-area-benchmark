@@ -75,26 +75,27 @@ def aggregate_roof_metrics(per_image: pd.DataFrame) -> dict[str, float | int]:
     }
 
 
-def select_area_aware_operating_point(
-    sensitivity: pd.DataFrame,
+def select_area_aware_candidate(
+    candidates: pd.DataFrame,
+    candidate_column: str,
     iou_tolerance: float,
-) -> tuple[float, pd.DataFrame]:
-    """Prefer minimum area error among thresholds with near-best mean IoU."""
+) -> tuple[object, pd.DataFrame]:
+    """Prefer minimum area error among candidates with near-best mean IoU."""
     required = {
-        "probability_threshold",
+        candidate_column,
         "mean_iou_nonempty_union",
         "mean_absolute_area_error_m2",
     }
-    missing = required.difference(sensitivity.columns)
+    missing = required.difference(candidates.columns)
     if missing:
-        raise ValueError(f"Sensitivity table is missing columns: {sorted(missing)}")
+        raise ValueError(f"Candidate table is missing columns: {sorted(missing)}")
     if iou_tolerance < 0:
         raise ValueError("iou_tolerance must be non-negative.")
 
-    annotated = sensitivity.copy()
+    annotated = candidates.copy()
     finite_iou = annotated["mean_iou_nonempty_union"].dropna()
     if finite_iou.empty:
-        raise ValueError("Sensitivity table contains no finite mean-IoU values.")
+        raise ValueError("Candidate table contains no finite mean-IoU values.")
     best_iou = float(finite_iou.max())
     annotated["within_iou_tolerance"] = (
         annotated["mean_iou_nonempty_union"] >= best_iou - iou_tolerance
@@ -105,5 +106,19 @@ def select_area_aware_operating_point(
     )
     selected_index = eligible.index[0]
     annotated["selected"] = annotated.index == selected_index
-    selected_threshold = float(annotated.loc[selected_index, "probability_threshold"])
+    selected_candidate = annotated.loc[selected_index, candidate_column]
+    return selected_candidate, annotated
+
+
+def select_area_aware_operating_point(
+    sensitivity: pd.DataFrame,
+    iou_tolerance: float,
+) -> tuple[float, pd.DataFrame]:
+    """Prefer minimum area error among thresholds with near-best mean IoU."""
+    selected_threshold, annotated = select_area_aware_candidate(
+        sensitivity,
+        "probability_threshold",
+        iou_tolerance,
+    )
+    selected_threshold = float(selected_threshold)
     return selected_threshold, annotated

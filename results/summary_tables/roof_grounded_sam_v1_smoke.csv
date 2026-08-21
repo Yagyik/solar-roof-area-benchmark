@@ -1,0 +1,2 @@
+method,operating_point,images,mean_iou_nonempty_union,median_iou_nonempty_union,mean_absolute_area_error_m2,run_id
+grounded_sam_v1,hierarchical_box_threshold=0.20,12,0.509490,0.546418,290.417600,roof_grounded_sam_smoke_20260821T104500Z
