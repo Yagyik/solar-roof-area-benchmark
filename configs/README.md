@@ -15,7 +15,9 @@ Current roof-method configurations are:
 - `roof_unet_v2.yaml`: GroupNorm and area-aware v2 GPU experiment;
 - `roof_grounded_sam.yaml`: preserved v1 GPU prompted experiment;
 - `roof_grounded_sam_v2.yaml`: augmented-prompt, parent-box, clipped-hierarchy,
-  area-aware v2 GPU experiment.
+  area-aware v2 GPU experiment;
+- `roof_grounded_sam_v3.yaml`: fixed relational hierarchy with independently
+  diagnosed parent and roof detector thresholds.
 
 Frozen historical configurations live under `configs/archive/` and must not be
 edited when a new trial is introduced.

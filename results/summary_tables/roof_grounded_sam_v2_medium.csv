@@ -1,0 +1,2 @@
+method,operating_point,images,mean_iou_nonempty_union,median_iou_nonempty_union,mean_absolute_area_error_m2,mean_precision,mean_recall,run_id
+grounded_sam_v2,hierarchical_parent=0.25_roof=0.25,100,0.487648816,0.573172210,175.099072,0.677792633,0.645135078,roof_grounded_sam_v2_medium_20260821T113645Z

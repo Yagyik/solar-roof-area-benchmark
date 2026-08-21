@@ -260,12 +260,13 @@ def predict_independent(
     }
 
 
-def _detect_parents(
+def detect_parent_boxes(
     models: GroundedSamModels,
     image: np.ndarray,
     parent_prompts: list[str],
     config: dict,
 ) -> dict:
+    """Detect parent building boxes using the independently configured gate."""
     return detect_boxes(
         models,
         image,
@@ -313,6 +314,9 @@ def _predict_hierarchical_from_parents(
         children = _limit_detections(children, maximum_output_boxes)
     result = _mask_from_detection(models, image, children, config)
     result["parent_box_count"] = len(parent["boxes"])
+    result["parent_boxes"] = parent["boxes"]
+    result["parent_scores"] = parent["scores"]
+    result["parent_labels"] = parent["labels"]
     return result
 
 
@@ -324,13 +328,34 @@ def predict_hierarchical(
     config: dict,
 ) -> dict:
     """Detect buildings first, then search each building crop for roof boxes."""
-    parent = _detect_parents(models, image, parent_prompts, config)
+    parent = detect_parent_boxes(models, image, parent_prompts, config)
+    global_limit = config["detection"].get("global_maximum_boxes")
     return _predict_hierarchical_from_parents(
         models,
         image,
         child_prompts,
         parent,
         config,
+        maximum_output_boxes=int(global_limit) if global_limit is not None else None,
+    )
+
+
+def predict_hierarchical_capped(
+    models: GroundedSamModels,
+    image: np.ndarray,
+    parent_prompts: list[str],
+    child_prompts: list[str],
+    config: dict,
+) -> dict:
+    """Run the un-clipped hierarchy with a global final roof-box cap."""
+    parent = detect_parent_boxes(models, image, parent_prompts, config)
+    return _predict_hierarchical_from_parents(
+        models,
+        image,
+        child_prompts,
+        parent,
+        config,
+        maximum_output_boxes=int(config["detection"]["maximum_boxes"]),
     )
 
 
@@ -341,7 +366,7 @@ def predict_parent_box_sam(
     config: dict,
 ) -> dict:
     """Detect buildings and send those parent boxes directly to SAM."""
-    parent = _detect_parents(models, image, parent_prompts, config)
+    parent = detect_parent_boxes(models, image, parent_prompts, config)
     result = _mask_from_detection(models, image, parent, config)
     result["parent_box_count"] = len(parent["boxes"])
     return result
@@ -355,7 +380,7 @@ def predict_hierarchical_clipped(
     config: dict,
 ) -> dict:
     """Intersect hierarchical roof masks with SAM masks from parent building boxes."""
-    parent = _detect_parents(models, image, parent_prompts, config)
+    parent = detect_parent_boxes(models, image, parent_prompts, config)
     child_result = _predict_hierarchical_from_parents(
         models,
         image,
@@ -448,6 +473,14 @@ def predict_strategy(
         )
     if strategy == "hierarchical":
         return predict_hierarchical(
+            models,
+            image,
+            list(config["prompts"]["parent"]),
+            prompts,
+            config,
+        )
+    if strategy == "hierarchical_capped":
+        return predict_hierarchical_capped(
             models,
             image,
             list(config["prompts"]["parent"]),

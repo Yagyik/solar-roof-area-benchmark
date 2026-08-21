@@ -110,5 +110,13 @@ def environment_snapshot(repository_root: Path) -> dict:
 
 
 def write_json(payload: dict, path: Path) -> None:
+    def portable_scalar(value: object) -> object:
+        if hasattr(value, "item"):
+            return value.item()
+        raise TypeError(f"Object of type {type(value).__name__} is not JSON serializable")
+
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+    path.write_text(
+        json.dumps(payload, indent=2, sort_keys=True, default=portable_scalar),
+        encoding="utf-8",
+    )

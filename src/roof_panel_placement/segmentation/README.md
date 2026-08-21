@@ -18,4 +18,6 @@ score development results, but no deployable inference function accepts them.
 - `grounded_sam.py` implements joint, independent, consensus, parent-box, and
   hierarchical Grounding DINO + SAM 2.1 prompting. The clipped hierarchy uses
   parent-building SAM regions, while oracle-component boxes are exposed only
-  through an explicitly diagnostic function.
+  through an explicitly diagnostic function. V3 additionally exposes parent
+  boxes so parent coverage and final roof-box localization can be evaluated as
+  separate stages.
