@@ -8,7 +8,12 @@ import numpy as np
 import torch
 from PIL import Image
 from torchvision.ops import nms
-from transformers import AutoModel, AutoModelForZeroShotObjectDetection, AutoProcessor
+from transformers import (
+    AutoModelForZeroShotObjectDetection,
+    AutoProcessor,
+    Sam2Model,
+    Sam2Processor,
+)
 
 
 @dataclass
@@ -35,12 +40,12 @@ def load_models(config: dict, device: torch.device) -> GroundedSamModels:
         cache_dir=cache_directory,
         use_safetensors=True,
     ).to(device).eval()
-    segmenter_processor = AutoProcessor.from_pretrained(
+    segmenter_processor = Sam2Processor.from_pretrained(
         model_config["segmenter_id"],
         revision=model_config["segmenter_revision"],
         cache_dir=cache_directory,
     )
-    segmenter = AutoModel.from_pretrained(
+    segmenter = Sam2Model.from_pretrained(
         model_config["segmenter_id"],
         revision=model_config["segmenter_revision"],
         cache_dir=cache_directory,
