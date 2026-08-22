@@ -24,9 +24,13 @@ Drive, but remain ignored by Git until they are curated:
 - `notebooks/working/31_roof_grounded_sam_v2_experiments.ipynb`
 - `notebooks/working/32_roof_grounded_sam_v3_box_diagnostics.ipynb`
 - `notebooks/working/33_roof_grounded_sam_v4_parent_nms.ipynb`
+- `notebooks/working/40_roof_method_checkpoint_comparison.ipynb`
+- `notebooks/working/41_slic_rf_classical_walkthrough.ipynb`
 
 Reusable implementations live in `src/roof_panel_placement/segmentation/`.
 SLIC–RF runs on CPU; U-Net and Grounding DINO + SAM 2.1 require a GPU runtime.
+Deterministic report cohorts and cross-method summary tables are implemented in
+`src/roof_panel_placement/reporting.py`.
 
 The official RID2 `test_split_512.csv` is sealed until the final comparison.
 See `docs/holdout_policy.md`.
@@ -39,4 +43,5 @@ Grounded-SAM smoke result is frozen in
 `docs/checkpoints/roof_grounded_sam_v1_smoke.md`; its v2 medium successor is
 frozen in `docs/checkpoints/roof_grounded_sam_v2_medium.md`; and the
 independently diagnosed v3 medium result is frozen in
-`docs/checkpoints/roof_grounded_sam_v3_medium.md`.
+`docs/checkpoints/roof_grounded_sam_v3_medium.md`. The parent-NMS v4 medium
+result is frozen in `docs/checkpoints/roof_grounded_sam_v4_medium.md`.

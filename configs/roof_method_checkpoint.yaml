@@ -1,0 +1,55 @@
+run:
+  name: roof_method_checkpoint
+  seed: 20260819
+
+runtime:
+  accelerator: gpu
+  python_major_minor: ["3.11", "3.12"]
+  minimum_gpu_memory_gb: 14.0
+
+paths:
+  drive_root: /content/drive/MyDrive/roof_poc
+  dataset_work_root: /content/rid2
+  source_artifact_subdirectory: experiment_artifacts/roof
+  artifact_subdirectory: experiment_artifacts/reporting
+
+data:
+  background_value: 5
+  pixel_size_m: 0.08
+
+coverage_classes:
+  under_10: "roof_fraction < 0.10"
+  10_to_35: "0.10 <= roof_fraction < 0.35"
+  35_to_70: "0.35 <= roof_fraction <= 0.70"
+  over_70: "roof_fraction > 0.70"
+
+methods:
+  SLIC–RF:
+    run_id: roof_slic_rf_medium_20260819T091131Z
+    metrics_file: per_image_metrics.csv
+    model_file: slic_random_forest.joblib
+    config_file: run_config.yaml
+    operating_point: probability=0.65; minimum_component_pixels=250
+  U-Net v1:
+    run_id: roof_unet_medium_20260821T092740Z
+    metrics_file: per_image_metrics.csv
+    model_file: model/best_model.pt
+    config_file: config.yaml
+    probability_threshold: 0.35
+    operating_point: probability=0.35
+  Grounded-SAM v3:
+    run_id: roof_grounded_sam_v3_medium_20260821T125806Z
+    metrics_file: per_image_metrics.csv
+    masks_directory: outer_validation_masks
+    operating_point: hierarchical parent=0.15; roof=0.30
+  Grounded-SAM v4:
+    run_id: roof_grounded_sam_v4_medium_20260821T162957Z
+    metrics_file: per_image_metrics.csv
+    masks_directory: outer_validation_masks
+    operating_point: hierarchical parent=0.10; parent NMS=0.30; roof=0.30
+
+slic_walkthrough:
+  name: slic_rf_classical_walkthrough
+  run_id: roof_slic_rf_medium_20260819T091131Z
+  minimum_roof_fraction: 0.40
+  example_images: 4

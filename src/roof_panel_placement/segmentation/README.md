@@ -14,6 +14,9 @@ reporting do not depend on the method. Oracle masks supervise U-Net fitting and
 score development results, but no deployable inference function accepts them.
 
 - `slic_rf.py` implements multiscale SLIC features and a Random Forest.
+  Its reporting helpers expose the exact per-scale partitions, multiscale
+  probabilities, thresholded mask, and each morphological cleanup state without
+  changing the deployable prediction path.
 - `unet.py` implements a compact task-trained U-Net and its training loop.
 - `grounded_sam.py` implements joint, independent, consensus, parent-box, and
   hierarchical Grounding DINO + SAM 2.1 prompting. The clipped hierarchy uses

@@ -20,6 +20,8 @@ Current roof-method configurations are:
   diagnosed parent and roof detector thresholds;
 - `roof_grounded_sam_v4.yaml`: class-agnostic parent NMS before the fixed
   20-parent cap, followed by a separately retuned roof gate.
+- `roof_method_checkpoint.yaml`: frozen source-run IDs and reporting cohorts
+  for the four-method medium-run checkpoint and SLIC walkthrough.
 
 Frozen historical configurations live under `configs/archive/` and must not be
 edited when a new trial is introduced.

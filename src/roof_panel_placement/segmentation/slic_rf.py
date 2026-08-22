@@ -23,6 +23,60 @@ LBP_RADIUS = 1
 LBP_BINS = LBP_POINTS + 2
 
 
+def superpixel_feature_schema() -> list[dict[str, str | int]]:
+    """Describe the 35 region features in the exact order used by the classifier."""
+    return [
+        {
+            "feature_family": "RGB colour",
+            "statistics": "mean and standard deviation for R, G, B",
+            "columns": 6,
+            "purpose": "Visible-band colour and brightness",
+        },
+        {
+            "feature_family": "CIELAB colour",
+            "statistics": "mean and standard deviation for L*, a*, b*",
+            "columns": 6,
+            "purpose": "Perceptual lightness and chromatic separation",
+        },
+        {
+            "feature_family": "HSV colour",
+            "statistics": "mean and standard deviation for H, S, V",
+            "columns": 6,
+            "purpose": "Hue, saturation, and illumination cues",
+        },
+        {
+            "feature_family": "Grayscale intensity",
+            "statistics": "mean and standard deviation",
+            "columns": 2,
+            "purpose": "Region brightness",
+        },
+        {
+            "feature_family": "Sobel edge response",
+            "statistics": "mean and standard deviation",
+            "columns": 2,
+            "purpose": "Boundary and internal-edge strength",
+        },
+        {
+            "feature_family": "7×7 local contrast",
+            "statistics": "mean and standard deviation of local intensity SD",
+            "columns": 2,
+            "purpose": "Fine-scale texture and contrast",
+        },
+        {
+            "feature_family": "Uniform local binary pattern",
+            "statistics": "normalised 10-bin histogram",
+            "columns": 10,
+            "purpose": "Local surface texture",
+        },
+        {
+            "feature_family": "Superpixel area",
+            "statistics": "log-normalised pixel count",
+            "columns": 1,
+            "purpose": "Region-scale context",
+        },
+    ]
+
+
 def slic_labels(image: np.ndarray, n_segments: int, config: dict) -> np.ndarray:
     """Create one compact SLIC partition with labels beginning at zero."""
     return segmentation.slic(
@@ -248,42 +302,87 @@ def fit_random_forest_learning_curve(
     return model, records
 
 
-def predict_multiscale_probability(
+def _multiscale_probability_components(
     model: RandomForestClassifier,
     image: np.ndarray,
     config: dict,
-) -> tuple[np.ndarray, dict[int, np.ndarray]]:
-    """Predict at every SLIC scale and return their pixelwise median."""
+) -> tuple[np.ndarray, dict[int, np.ndarray], dict[int, np.ndarray]]:
+    """Return the median, per-scale probabilities, and SLIC label maps."""
     probability_maps = {}
+    label_maps = {}
     prepared_pixels = _pixel_features(image)
     for n_segments in config["slic"]["n_segments"]:
         n_segments = int(n_segments)
         labels = slic_labels(image, n_segments, config["slic"])
         features = superpixel_features(image, labels, prepared_pixels)
         region_probability = model.predict_proba(features)[:, 1]
+        label_maps[n_segments] = labels
         probability_maps[n_segments] = region_probability[labels]
 
     stacked = np.stack(list(probability_maps.values()))
-    return np.median(stacked, axis=0), probability_maps
+    return np.median(stacked, axis=0), probability_maps, label_maps
+
+
+def predict_multiscale_probability(
+    model: RandomForestClassifier,
+    image: np.ndarray,
+    config: dict,
+) -> tuple[np.ndarray, dict[int, np.ndarray]]:
+    """Predict at every SLIC scale and return their pixelwise median."""
+    probability, probability_maps, _ = _multiscale_probability_components(
+        model, image, config
+    )
+    return probability, probability_maps
+
+
+def postprocessing_stages(probability: np.ndarray, config: dict) -> dict[str, np.ndarray]:
+    """Return each successive binary post-processing state for explanation."""
+    post = config["postprocessing"]
+    thresholded = probability >= float(post["probability_threshold"])
+    radius = int(post["closing_radius_pixels"])
+    closed = (
+        morphology.closing(thresholded, morphology.disk(radius))
+        if radius > 0
+        else thresholded.copy()
+    )
+    maximum_hole_pixels = int(post["maximum_hole_pixels"])
+    holes_filled = morphology.remove_small_holes(
+        closed,
+        max_size=max(0, maximum_hole_pixels - 1),
+    )
+    minimum_component_pixels = int(post["minimum_component_pixels"])
+    final = morphology.remove_small_objects(
+        holes_filled,
+        max_size=max(0, minimum_component_pixels - 1),
+    )
+    return {
+        "thresholded_mask": thresholded,
+        "closed_mask": closed,
+        "holes_filled_mask": holes_filled,
+        "final_mask": final,
+    }
+
+
+def predict_multiscale_stages(
+    model: RandomForestClassifier,
+    image: np.ndarray,
+    config: dict,
+) -> dict[str, object]:
+    """Expose real SLIC, probability, and post-processing states for walkthroughs."""
+    probability, probability_maps, label_maps = _multiscale_probability_components(
+        model, image, config
+    )
+    return {
+        "label_maps": label_maps,
+        "scale_probability_maps": probability_maps,
+        "median_probability": probability,
+        **postprocessing_stages(probability, config),
+    }
 
 
 def postprocess_probability(probability: np.ndarray, config: dict) -> np.ndarray:
     """Convert probabilities to a cleaned binary mask, including empty output."""
-    post = config["postprocessing"]
-    mask = probability >= float(post["probability_threshold"])
-    radius = int(post["closing_radius_pixels"])
-    if radius > 0:
-        mask = morphology.closing(mask, morphology.disk(radius))
-    maximum_hole_pixels = int(post["maximum_hole_pixels"])
-    mask = morphology.remove_small_holes(
-        mask,
-        max_size=max(0, maximum_hole_pixels - 1),
-    )
-    minimum_component_pixels = int(post["minimum_component_pixels"])
-    return morphology.remove_small_objects(
-        mask,
-        max_size=max(0, minimum_component_pixels - 1),
-    )
+    return postprocessing_stages(probability, config)["final_mask"]
 
 
 def pairwise_scale_stability(probability_maps: dict[int, np.ndarray], threshold: float) -> float:
